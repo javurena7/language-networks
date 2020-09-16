@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 
 
-def layer_adjmat(layer_path, outpath='', sampsize=.05, samp=None):
+def layer_adjmat(layer_path, dist='cosine', sampsize=.05, samp=None):
     """
     Create adjacency matrix from embedded layer representations
     """
@@ -28,17 +28,18 @@ def layer_adjmat(layer_path, outpath='', sampsize=.05, samp=None):
     adj_mat = np.zeros((lens, lens))
     current_idx = [0, 0]
 
+    # Fill matrix
     for idx_i, i in enumerate(samp):
         print('Sentence %d out of %d' % (idx_i, samp_len))
         sent_i = h5f.get(str(i))[()]
         sent_i, sent_i_len = check_shape(sent_i)
-        self_dist(adj_mat, current_idx, sent_i)
+        self_dist(adj_mat, current_idx, sent_i, dist)
         current_idx[1] += sent_i_len
         for idx_j in range(idx_i + 1, samp_len):
             j = samp[idx_j]
             sent_j = h5f.get(str(j))[()]
             sent_j, sent_j_len = check_shape(sent_j)
-            current_idx = get_dist(adj_mat, sent_i, sent_j, current_idx, sent_i_len)
+            current_idx = get_dist(adj_mat, sent_i, sent_j, current_idx, sent_i_len, dist)
 
         # Restart index counter at the next diagonal value
         idx_h = current_idx[0] + sent_i_len
@@ -62,20 +63,19 @@ def self_dist(adj_mat, c_idx, sent_i, dist='euclindean'):
     elif dist == 'euclidean':
         cossim = euclidean_distances(sent_i, sent_i)
     else:
-        break
+        raise ValueError
     cossim = np.triu(cossim, 1)
     s_len = cossim.shape[0]
-    c = c_idx[0]
-    adj_mat[c: c + s_len, c: c + s_len] = cossim
+    adj_mat[c_idx[0]: c_idx[0] + s_len, c_idx[1]: c_idx[1] + s_len] = cossim
 
 
 def get_dist(adj_mat, sent_i, sent_j, c_idx, s_i_len, dist='euclidean'):
     if dist == 'cosine':
-        cossim = cosine_similarity(sent_i, sent_j) #
+        cossim = cosine_similarity(sent_i, sent_j)
     elif dist == 'euclidean':
-        cossim = euclidean_distances(sent_i, sent_j) #
+        cossim = euclidean_distances(sent_i, sent_j)
     else:
-        break
+        raise ValueError
     s_j_len = cossim.shape[1]
     adj_mat[c_idx[0]: c_idx[0] + s_i_len, c_idx[1]: c_idx[1] + s_j_len] = cossim
     c_idx[1] += s_j_len
@@ -88,3 +88,60 @@ def get_lens(layer_path, samp):
     sent_lens = [h5f.get(str(sent_idx)).shape[0] for sent_idx in samp]
     h5f.close()
     return sum(sent_lens)
+
+def layer_adjmat_tofile(layer_path, outpath='', dist='cosine', sampsize=.05, samp=None):
+    """
+    Create adjacency matrix from embedded layer representations and write to file
+    """
+    sentlen = 52082
+
+    #obtain sample
+    if (sampsize is not None) and sampsize < 1:
+        n_samp = int(sampsize * sentlen)
+        samp = sorted(np.random.choice(range(sentlen), size=n_samp, replace=False))
+        lens = get_lens(layer_path, samp)
+    elif samp:
+        lens = get_lens(layer_path, samp)
+    else:
+        samp = range(sentlen)
+        lens = 741753 #Hard coded total
+
+    samp_len = len(samp)
+
+    # Initialize reading
+    h5f = h5py.File(layer_path, 'r')
+    current_idx = [0, 0]
+    idx_h = 0
+
+    # Fill matrix
+    for idx_i, i in enumerate(samp):
+        print('Sentence %d out of %d' % (idx_i, samp_len))
+        sent_i = h5f.get(str(i))[()]
+        sent_i, sent_i_len = check_shape(sent_i)
+        adj_mat = np.zeros((sent_i_len, lens), dtype=int)
+        self_dist(adj_mat, current_idx, sent_i, dist)
+        idx_h += sent_i_len
+        current_idx = [0, idx_h]
+        for idx_j in range(idx_i + 1, samp_len):
+            j = samp[idx_j]
+            sent_j = h5f.get(str(j))[()]
+            sent_j, _ = check_shape(sent_j)
+            current_idx = get_dist(adj_mat, sent_i, sent_j, current_idx, sent_i_len, dist)
+        current_idx = [0, idx_h]
+        # Write block matrix
+        write_submat(outpath, adj_mat, idx_i)
+    h5f.close()
+
+    return samp
+
+
+def write_submat(outpath, mat, idx_i):
+    if idx_i == 0:
+        w = open(outpath, 'w')
+    else:
+        w = open(outpath, 'a+')
+
+    np.savetxt(w, mat) #fmt='%.10f', delimiter=' ')
+    w.close()
+
+
