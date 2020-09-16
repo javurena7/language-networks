@@ -2,7 +2,7 @@ import networkx as nx
 import h5py
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
-
+import subprocess
 
 def layer_adjmat(layer_path, dist='cosine', sampsize=.05, samp=None):
     """
@@ -12,8 +12,7 @@ def layer_adjmat(layer_path, dist='cosine', sampsize=.05, samp=None):
 
     #obtain sample
     if (sampsize is not None) and sampsize < 1:
-        n_samp = int(sampsize * sentlen)
-        samp = sorted(np.random.choice(range(sentlen), size=n_samp, replace=False))
+        samp = get_sample(sampsize, sentlen)
         lens = get_lens(layer_path, samp)
     elif samp:
         lens = get_lens(layer_path, samp)
@@ -48,6 +47,12 @@ def layer_adjmat(layer_path, dist='cosine', sampsize=.05, samp=None):
 
     return adj_mat, samp
 
+def get_sample(sampsize, sentlen):
+    n_samp = int(sampsize * sentlen)
+    samp = sorted(np.random.choice(range(sentlen), size=n_samp, replace=False))
+    return samp
+
+
 def check_shape(sent):
     if len(sent.shape) == 1:
         sent = sent.reshape(1, -1)
@@ -79,7 +84,6 @@ def get_dist(adj_mat, sent_i, sent_j, c_idx, s_i_len, dist='euclidean'):
     s_j_len = cossim.shape[1]
     adj_mat[c_idx[0]: c_idx[0] + s_i_len, c_idx[1]: c_idx[1] + s_j_len] = cossim
     c_idx[1] += s_j_len
-
     return c_idx
 
 
@@ -96,14 +100,14 @@ def layer_adjmat_tofile(layer_path, outpath='', dist='cosine', sampsize=.05, sam
     sentlen = 52082
 
     #obtain sample
-    if (sampsize is not None) and sampsize < 1:
+    if samp is not None:
+        lens = get_lens(layer_path, samp)
+    elif (sampsize is not None) and sampsize < 1:
         n_samp = int(sampsize * sentlen)
         samp = sorted(np.random.choice(range(sentlen), size=n_samp, replace=False))
         lens = get_lens(layer_path, samp)
-    elif samp:
-        lens = get_lens(layer_path, samp)
     else:
-        samp = range(sentlen)
+        samp = 0 #range(sentlen)
         lens = 741753 #Hard coded total
 
     samp_len = len(samp)
@@ -118,7 +122,7 @@ def layer_adjmat_tofile(layer_path, outpath='', dist='cosine', sampsize=.05, sam
         print('Sentence %d out of %d' % (idx_i, samp_len))
         sent_i = h5f.get(str(i))[()]
         sent_i, sent_i_len = check_shape(sent_i)
-        adj_mat = np.zeros((sent_i_len, lens), dtype=int)
+        adj_mat = np.zeros((sent_i_len, lens))
         self_dist(adj_mat, current_idx, sent_i, dist)
         idx_h += sent_i_len
         current_idx = [0, idx_h]
@@ -131,8 +135,11 @@ def layer_adjmat_tofile(layer_path, outpath='', dist='cosine', sampsize=.05, sam
         # Write block matrix
         write_submat(outpath, adj_mat, idx_i)
     h5f.close()
-
     return samp
+
+def reformat_zeros(outpath):
+    cmd = "sed -i 's/0.00000000/0/g' {}".format(outpath)
+    subprocess.call(cmd, shell=True)
 
 
 def write_submat(outpath, mat, idx_i):
@@ -140,8 +147,8 @@ def write_submat(outpath, mat, idx_i):
         w = open(outpath, 'w')
     else:
         w = open(outpath, 'a+')
-
-    np.savetxt(w, mat) #fmt='%.10f', delimiter=' ')
+    np.savetxt(w, mat, fmt='%.8f', delimiter=' ')
     w.close()
+    reformat_zeros(outpath)
 
 
