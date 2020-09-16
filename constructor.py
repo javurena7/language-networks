@@ -1,18 +1,21 @@
 import networkx as nx
 import h5py
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 
-def layer_adjmat(layer_path, outpath='', sampsize=.05):
+
+def layer_adjmat(layer_path, outpath='', sampsize=.05, samp=None):
     """
     Create adjacency matrix from embedded layer representations
     """
     sentlen = 52082
 
     #obtain sample
-    if (sampsize is not None) or sampsize < 1:
+    if (sampsize is not None) and sampsize < 1:
         n_samp = int(sampsize * sentlen)
         samp = sorted(np.random.choice(range(sentlen), size=n_samp, replace=False))
+        lens = get_lens(layer_path, samp)
+    elif samp:
         lens = get_lens(layer_path, samp)
     else:
         samp = range(sentlen)
@@ -28,20 +31,21 @@ def layer_adjmat(layer_path, outpath='', sampsize=.05):
     for idx_i, i in enumerate(samp):
         print('Sentence %d out of %d' % (idx_i, samp_len))
         sent_i = h5f.get(str(i))[()]
-        sent_i = check_shape(sent_i)
-        sent_i_len = self_dist(adj_mat, current_idx, sent_i)
+        sent_i, sent_i_len = check_shape(sent_i)
+        self_dist(adj_mat, current_idx, sent_i)
         current_idx[1] += sent_i_len
         for idx_j in range(idx_i + 1, samp_len):
             j = samp[idx_j]
             sent_j = h5f.get(str(j))[()]
-            sent_j = check_shape(sent_j)
+            sent_j, sent_j_len = check_shape(sent_j)
             current_idx = get_dist(adj_mat, sent_i, sent_j, current_idx, sent_i_len)
 
         # Restart index counter at the next diagonal value
         idx_h = current_idx[0] + sent_i_len
         current_idx = [idx_h, idx_h]
+    h5f.close()
 
-    return adj_mat
+    return adj_mat, samp
 
 def check_shape(sent):
     if len(sent.shape) == 1:
@@ -49,21 +53,29 @@ def check_shape(sent):
     return sent, sent.shape[0]
 
 
-def self_dist(adj_mat, c_idx, sent_i):
+def self_dist(adj_mat, c_idx, sent_i, dist='euclindean'):
     """
     Compute upper triangular metrics for cosine similarity
     """
-    cossim = cosine_similarity(sent_i, sent_i)
+    if dist == 'cosine':
+        cossim = cosine_similarity(sent_i, sent_i)
+    elif dist == 'euclidean':
+        cossim = euclidean_distances(sent_i, sent_i)
+    else:
+        break
     cossim = np.triu(cossim, 1)
     s_len = cossim.shape[0]
     c = c_idx[0]
     adj_mat[c: c + s_len, c: c + s_len] = cossim
 
-    return s_len
 
-
-def get_dist(adj_mat, sent_i, sent_j, c_idx, s_i_len):
-    cossim = cosine_similarity(sent_i, sent_j)
+def get_dist(adj_mat, sent_i, sent_j, c_idx, s_i_len, dist='euclidean'):
+    if dist == 'cosine':
+        cossim = cosine_similarity(sent_i, sent_j) #
+    elif dist == 'euclidean':
+        cossim = euclidean_distances(sent_i, sent_j) #
+    else:
+        break
     s_j_len = cossim.shape[1]
     adj_mat[c_idx[0]: c_idx[0] + s_i_len, c_idx[1]: c_idx[1] + s_j_len] = cossim
     c_idx[1] += s_j_len
