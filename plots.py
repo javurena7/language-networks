@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 
 
-sentlen = 50000
+sentlen = 2500
 cases = [0,1,2,3,4,5,6]
 lstring = "layer%d_bert-base-cased.h5"
 lstring = "layer%d_alignMTende2BERT.h5"
@@ -13,6 +13,12 @@ ostring = "layer%d_%s.txt"
 lstrings = ["layer%d_bert-base-cased.h5", "layer%d_MTende.h5"]
 modelnames = ['BERT', "MT en-de"]
 cases = [[0,1,2,3,4,5,6,7,8,9,10,11,12],[0,1,2,3,4,5,6]]
+
+
+sentlen = 2500
+lstrings = ["layer%d_alignBERT2MTende.h5", "layer%d_alignMTende2BERT.h5"]
+modelnames = ["alignBERT2MTende", "alignMTende2BERT"]
+cases = [[0,1,2,3],[0,1,2,3]]
 
 def run_small_samp(data_path, out_path, sampsize=.01):
     cases = [0,1,2,3,4,5,6]
@@ -67,10 +73,10 @@ def plot_violin(data_path, out_path):
 
     sns.set_theme(style="whitegrid")
     fig, axs = plt.subplots(2, 1, sharex=True)
-    datadict={}
-    dataframe=pd.DataFrame()
-    #datalist=[]
+
     for j, dist in enumerate(dists):
+        datadict={}
+        dataframe=pd.DataFrame()
         for i, mname in enumerate(modelnames):
             for case in cases[i]:
                 loadpath = out_path + mname.replace(' ','') + ostring % (case, dist)
@@ -78,7 +84,7 @@ def plot_violin(data_path, out_path):
                 lens = mat.shape[0]
                 nvals=int(lens*(lens-1)/2)
                 #datadict[f'layer{case}']=mat[np.triu_indices(lens, k=1)].flatten()
-                datadict['Model'] = f'{mname[i]}'
+                datadict['Model'] = f'{mname}'
                 datadict['Layer'] = f'layer{case}'
                 datadict['Value'] = mat[np.triu_indices(lens, k=1)].flatten()
                 df=pd.DataFrame(datadict)
