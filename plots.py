@@ -16,7 +16,7 @@ cases = [[0,1,2,3,4,5,6,7,8,9,10,11,12],[0,1,2,3,4,5,6]]
 
 def run_small_samp(data_path, out_path, sampsize=.01):
     cases = [0,1,2,3,4,5,6]
-    
+
     samp = cons.get_sample(sampsize, sentlen)
     pickle.dump(samp, open(out_path + 'sample.p', 'wb'))
     dists = ['cosine', 'euclidean']
@@ -58,43 +58,45 @@ def plot_histograms(data_path, out_path):
     fig.savefig(out_path + 'histograms.pdf')
 
 
-def plot_violin(data_path, out_path, metric='cosine'):
+def plot_violin(data_path, out_path):
 
 
-    #dists = ['cosine']#, 'euclidean']
+    dists = ['cosine', 'euclidean']
     import seaborn as sns
     import pandas as pd
 
-    #fig, axs = plt.subplots(1, 2)
+    sns.set_theme(style="whitegrid")
+    fig, axs = plt.subplots(2, 1, sharex=True)
     datadict={}
     dataframe=pd.DataFrame()
     #datalist=[]
-    #for i, dist in enumerate(dists):
-    for i, mname in enumerate(modelnames):
-        for case in cases[i]:
-            loadpath = out_path + mname.replace(' ','') + ostring % (case, dist)
-            mat = np.loadtxt(loadpath)
-            lens = mat.shape[0]
-            nvals=int(lens*(lens-1)/2)
-            #datadict[f'layer{case}']=mat[np.triu_indices(lens, k=1)].flatten()
-            datadict['Model'] = f'{mname[i]}'
-            datadict['Layer'] = f'layer{case}'
-            datadict['Value'] = mat[np.triu_indices(lens, k=1)].flatten()
-            df=pd.DataFrame(datadict)
-            dataframe=pd.concat([dataframe,df])
-
-
-    ax = sns.violinplot(data=dataframe,
+    for j, dist in enumerate(dists):
+        for i, mname in enumerate(modelnames):
+            for case in cases[i]:
+                loadpath = out_path + mname.replace(' ','') + ostring % (case, dist)
+                mat = np.loadtxt(loadpath)
+                lens = mat.shape[0]
+                nvals=int(lens*(lens-1)/2)
+                #datadict[f'layer{case}']=mat[np.triu_indices(lens, k=1)].flatten()
+                datadict['Model'] = f'{mname[i]}'
+                datadict['Layer'] = f'layer{case}'
+                datadict['Value'] = mat[np.triu_indices(lens, k=1)].flatten()
+                df=pd.DataFrame(datadict)
+                dataframe=pd.concat([dataframe,df])
+    
+        axtitle= 'cosine similarity' if dist=='cosine' else 'euclidean distance'
+        axs[j].set_title(axtitle)
+        sns.violinplot(ax=axs[j], 
+                         data=dataframe,
                          y="Value", x="Layer", 
                          alpha=.5, 
                          cut=0, 
                          palette="Set3", 
                          hue="Model", 
-                         split=True
+                         split=True,
+                         inner="quartile", 
                         )
-    #axs[i].hist(data, 100, alpha=.5, label='layer %s' % case, density=True)
-    #    axs[i].legend(loc=0)
-    #    axs[i].set_xlabel(dist)
+    
     fig.tight_layout()
     fig.savefig(out_path + 'histograms.pdf')
 
