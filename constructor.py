@@ -8,7 +8,7 @@ def layer_adjmat(layer_path, dist='cosine', sampsize=.05, samp=None):
     """
     Create adjacency matrix from embedded layer representations
     """
-    sentlen = 52082
+    sentlen = 50000
 
     #obtain sample
     if (sampsize is not None) and sampsize < 1:
@@ -97,7 +97,7 @@ def layer_adjmat_tofile(layer_path, outpath='', dist='cosine', sampsize=.05, sam
     """
     Create adjacency matrix from embedded layer representations and write to file
     """
-    sentlen = 52082
+    sentlen = 50000
 
     #obtain sample
     if samp is not None:
